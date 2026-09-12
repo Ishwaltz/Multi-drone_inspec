@@ -1,18 +1,28 @@
 <div align="center">
 
-# GCBF+
+# Multi-Drone Human-Aware Bridge Inspection System
 
-[![Paper](https://img.shields.io/badge/T--RO-Accepted-success)](https://mit-realm.github.io/gcbfplus-website/)
-
-Jax Official Implementation of T-RO Paper: [Songyuan Zhang*](https://syzhang092218-source.github.io), [Oswin So*](https://oswinso.xyz/), [Kunal Garg](https://kunalgarg.mit.edu/), and [Chuchu Fan](https://chuchu.mit.edu): "[GCBF+: A Neural Graph Control Barrier Function Framework for Distributed Safe Multi-Agent Control](https://mit-realm.github.io/gcbfplus-website/)". 
-
-[Dependencies](#Dependencies) •
-[Installation](#Installation) •
-[Run](#Run)
+A human-aware multi-drone autonomous inspection framework for safe bridge inspection operations with active workers on-site.
 
 </div>
 
-A much improved version of [GCBFv0](https://mit-realm.github.io/gcbf-website/)!
+## Overview
+
+This project extends the [GCBF+](https://mit-realm.github.io/gcbfplus-website/) neural graph control barrier function framework to enable safe autonomous multi-drone bridge inspection in human-populated environments. By integrating human worker behavioral models and proximity-based safety constraints, this system enables drones to complete inspection tasks while maintaining safety guarantees around human workers.
+
+### Key Features
+
+- **Multi-Drone Coordination**: Leverages GCBF+ anti-collision capabilities for coordinated drone operations
+- **Human Worker Models**: Simulates realistic worker behaviors including:
+  - Standing still at work stations
+  - Crouching/bending positions
+  - Moving between inspection stations
+  - Dynamic positional changes
+- **Human-Aware Safety Boundaries**: Proximity-based safety constraints with graduated penalties:
+  - Distance-dependent penalty scaling to encourage drones to maintain safe standoff distances
+  - Behavior-aware constraints that adapt based on worker pose and movement
+  - Configurable safety margins for different inspection scenarios
+- **Autonomous Bridge Inspection**: Drones execute inspection trajectories while respecting both anti-collision and human safety constraints
 
 <div align="center">
     <img src="./media/cbf1.gif" alt="LidarSpread" width="24.55%"/>
@@ -23,22 +33,22 @@ A much improved version of [GCBFv0](https://mit-realm.github.io/gcbf-website/)!
 
 ## Dependencies
 
-We recommend to use [CONDA](https://www.anaconda.com/) to install the requirements:
+We recommend using [CONDA](https://www.anaconda.com/) to install the requirements:
 
 ```bash
 conda create -n gcbfplus python=3.10
 conda activate gcbfplus
-cd gcbfplus
+cd Multi-drone_inspec
 ```
 
-Then install jax following the [official instructions](https://github.com/google/jax#installation), and then install the rest of the dependencies:
+Then install JAX following the [official instructions](https://github.com/google/jax#installation), and then install the rest of the dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
 ## Installation
 
-Install GCBF: 
+Install the package:
 
 ```bash
 pip install -e .
@@ -50,102 +60,111 @@ pip install -e .
 
 We provide 3 2D environments including `SingleIntegrator`, `DoubleIntegrator`, and `DubinsCar`, and 2 3D environments including `LinearDrone` and `CrazyFlie`.
 
+**New in this fork**: Human worker models can be instantiated in any environment to simulate realistic inspection scenarios with active workers on-site.
+
 ### Algorithms
 
 We provide algorithms including GCBF+ (`gcbf+`), GCBF (`gcbf`), centralized CBF-QP (`centralized_cbf`), and decentralized CBF-QP (`dec_share_cbf`). Use `--algo` to specify the algorithm. 
 
+### Human Worker Configuration
+
+Human workers are configured with:
+- **Behavior modes**: `standing`, `crouching`, `moving_between_stations`, `standing_still`
+- **Safety boundary radius**: Configurable distance threshold around each worker
+- **Penalty scaling**: Distance-based penalty weights that increase as drones approach the worker
+
 ### Hyper-parameters
 
-To reproduce the results shown in our paper, one can refer to [`settings.yaml`](./settings.yaml).
+To reproduce the results shown in the original GCBF+ paper, refer to [`settings.yaml`](./settings.yaml). For human-aware configurations, see the human safety parameters section.
 
 ### Train
 
-To train the model (only GCBF+ and GCBF need training), use:
+To train a human-aware multi-drone inspection model, use:
 
 ```bash
-python train.py --algo gcbf+ --env DoubleIntegrator -n 8 --area-size 4 --loss-action-coef 1e-4 --n-env-train 16 --lr-actor 1e-5 --lr-cbf 1e-5 --horizon 32
+python train.py --algo gcbf+ --env DoubleIntegrator -n 8 --area-size 4 --loss-action-coef 1e-4 --n-env-train 16 --lr-actor 1e-5 --lr-cbf 1e-5 --horizon 32 --human-workers 2 --human-safety-penalty 0.5
 ```
 
-In our paper, we use 8 agents with 1000 training steps. The training logs will be saved in folder `./logs/<env>/<algo>/seed<seed>_<training-start-time>`. We also provide the following flags:
+Key parameters for human-aware training:
+- `--human-workers`: number of human workers in the environment
+- `--human-safety-penalty`: base penalty weight for proximity to humans (higher = stricter safety constraints)
+- `--human-safety-radius`: minimum safe distance from human workers
+- `--human-behavior-modes`: worker behavior distribution during training
 
-- `-n`: number of agents
-- `--env`: environment, including `SingleIntegrator`, `DoubleIntegrator`, `DubinsCar`, `LinearDrone`, and `CrazyFlie`
-- `--algo`: algorithm, including `gcbf`, `gcbf+`
+Standard training flags:
+- `-n`: number of drones
+- `--env`: environment
+- `--algo`: algorithm (`gcbf+` or `gcbf` for learning-based approaches)
 - `--seed`: random seed
 - `--steps`: number of training steps
-- `--name`: name of the experiment
-- `--debug`: debug mode: no recording, no saving
+- `--name`: experiment name
 - `--obs`: number of obstacles
 - `--n-rays`: number of LiDAR rays
 - `--area-size`: side length of the environment
-- `--n-env-train`: number of environments for training
-- `--n-env-test`: number of environments for testing
-- `--log-dir`: path to save the training logs
-- `--eval-interval`: interval of evaluation
-- `--eval-epi`: number of episodes for evaluation
-- `--save-interval`: interval of saving the model
+- `--n-env-train`: number of training environments
+- `--n-env-test`: number of test environments
+- `--log-dir`: path to save logs
+- `--eval-interval`: evaluation frequency
+- `--eval-epi`: episodes per evaluation
+- `--save-interval`: checkpoint save frequency
 
-In addition, use the following flags to specify the hyper-parameters:
+Hyperparameter flags:
 - `--alpha`: GCBF alpha
-- `--horizon`: GCBF+ look forward horizon
-- `--lr-actor`: learning rate of the actor
-- `--lr-cbf`: learning rate of the CBF
-- `--loss-action-coef`: coefficient of the action loss
-- `--loss-h-dot-coef`: coefficient of the h_dot loss
-- `--loss-safe-coef`: coefficient of the safe loss
-- `--loss-unsafe-coef`: coefficient of the unsafe loss
-- `--buffer-size`: size of the replay buffer
+- `--horizon`: GCBF+ lookahead horizon
+- `--lr-actor`: actor learning rate
+- `--lr-cbf`: CBF learning rate
+- `--loss-action-coef`: action loss weight
+- `--loss-h-dot-coef`: h_dot loss weight
+- `--loss-safe-coef`: safety loss weight
+- `--loss-unsafe-coef`: unsafe state loss weight
+- `--buffer-size`: replay buffer size
 
 ### Test
 
-To test the learned model, use:
+To test the human-aware inspection model:
 
 ```bash
-python test.py --path <path-to-log> --epi 5 --area-size 4 -n 16 --obs 0
+python test.py --path <path-to-log> --epi 5 --area-size 4 -n 8 --human-workers 2 --human-behavior-distribution varied
 ```
 
-This should report the safety rate, goal reaching rate, and success rate of the learned model, and generate videos of the learned model in `<path-to-log>/videos`. Use the following flags to customize the test:
+This evaluates:
+- Safety rate (collision avoidance with drones and obstacles)
+- Human safety rate (proximity violations with workers)
+- Goal reaching rate (inspection task completion)
+- Success rate (safe inspection completion)
 
-- `-n`: number of agents
-- `--obs`: number of obstacles
-- `--area-size`: side length of the environment
-- `--max-step`: maximum number of steps for each episode, increase this if you have a large environment
-- `--path`: path to the log folder
-- `--n-rays`: number of LiDAR rays
-- `--alpha`: CBF alpha, used in centralized CBF-QP and decentralized CBF-QP
-- `--max-travel`: maximum travel distance of agents
-- `--cbf`: plot the CBF contour of this agent, only support 2D environments
+Generated videos will be saved in `<path-to-log>/videos`.
+
+Test flags:
+- `-n`: number of drones
+- `--human-workers`: number of human workers
+- `--human-behavior-distribution`: worker behavior profile (`static`, `dynamic`, `varied`)
+- `--human-safety-radius`: safety boundary radius
+- `--area-size`: environment size
+- `--max-step`: maximum episode length
+- `--path`: log folder path
+- `--epi`: number of test episodes
 - `--seed`: random seed
-- `--debug`: debug mode
-- `--cpu`: use CPU
-- `--u-ref`: test the nominal controller
-- `--env`: test environment (not needed if the log folder is specified)
-- `--algo`: test algorithm (not needed if the log folder is specified)
-- `--step`: test step (not needed if testing the last saved model)
-- `--epi`: number of episodes to test
-- `--offset`: offset of the random seeds
-- `--no-video`: do not generate videos
-- `--log`: log the results to a file
-- `--dpi`: dpi of the video
-- `--nojit-rollout`: do not use jit to speed up the rollout, used for large-scale tests
+- `--no-video`: skip video generation
+- `--log`: save results to file
 
-To test the nominal controller, use:
-
+Example: Test with static workers (standing still):
 ```bash
-python test.py --env SingleIntegrator -n 16 --u-ref --epi 1 --area-size 4 --obs 0
+python test.py --env DoubleIntegrator -n 8 --human-workers 3 --human-behavior-distribution static --epi 5 --area-size 4
 ```
 
-To test the CBF-QPs, use:
-
+Example: Test with dynamic workers (moving between stations):
 ```bash
-python test.py --env SingleIntegrator -n 16 --algo dec_share_cbf --epi 1 --area-size 4 --obs 0 --alpha 1
+python test.py --env DoubleIntegrator -n 8 --human-workers 3 --human-behavior-distribution dynamic --epi 5 --area-size 4
 ```
 
-### Pre-trained models
+### Pre-trained Models
 
-We provide pre-trained models in folder [`pretrained`](pretrained). However, their performance may depend on the GPU/CUDA/Jax versions. We highly recommend retraining a model yourself.
+Pre-trained models are available in the [`pretrained`](pretrained) folder. However, performance may vary depending on GPU/CUDA/JAX versions. **Retraining on your specific hardware is recommended**, especially for human-aware scenarios where safety is critical.
 
 ## Citation
+
+If you use this work, please cite the original GCBF+ paper:
 
 ```
 @ARTICLE{zhang2025gcbf+,
@@ -159,10 +178,22 @@ We provide pre-trained models in folder [`pretrained`](pretrained). However, the
 }
 ```
 
-## Acknowledgement
+For this human-aware extension, please reference this repository:
+```
+@misc{ishwaltz2024multidroneinspection,
+      title={Multi-Drone Human-Aware Bridge Inspection System},
+      author={Ishwaltz},
+      year={2024},
+      howpublished={\url{https://github.com/Ishwaltz/Multi-drone_inspec}}
+}
+```
 
-The developers were partially supported by MITRE during the project.
+## Acknowledgements
 
-© 2024 MIT
+This work builds upon the [GCBF+](https://mit-realm.github.io/gcbfplus-website/) framework developed by Songyuan Zhang, Oswin So, Kunal Garg, and Chuchu Fan at MIT.
 
-© 2024 The MITRE Corporation
+The original developers were partially supported by MITRE during the GCBF+ project.
+
+© 2024 MIT  
+© 2024 The MITRE Corporation  
+© 2024 Human-Aware Extension Contributors
